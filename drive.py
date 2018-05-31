@@ -3,7 +3,9 @@ import base64
 from datetime import datetime
 import os
 import shutil
+import matplotlib.pyplot as plt
 
+import cv2
 import numpy as np
 import socketio
 import eventlet
@@ -11,6 +13,9 @@ import eventlet.wsgi
 from flask import Flask
 from io import BytesIO
 from PIL import Image
+from keras.models import load_model
+
+from detect import yolo_net_out_to_car_boxes, draw_box
 
 sio = socketio.Server()
 app = Flask(__name__)
@@ -57,11 +62,30 @@ def telemetry(sid, data):
     imgString = data["image"]
     image = Image.open(BytesIO(base64.b64decode(imgString)))
     image_array = np.asarray(image)
+
+    model = load_model('my_model.h5')
+    image_crop = image_array[300:650, 500:, :]
+    resized = cv2.resize(image_crop, (448, 448))
+
+    batch = np.transpose(resized, (2, 0, 1))
+    batch = 2 * (batch / 255.) - 1
+    batch = np.expand_dims(batch, axis=0)
+    out = model.predict(batch)
+
+    boxes = yolo_net_out_to_car_boxes(out[0], threshold=0.17)
+    image_boxed = draw_box(boxes, image_array, [[500, 1280], [300, 650]])[1][0][1]
+    if (image_boxed - 640 > 0):
+        print('steer right')
+
+    else:
+        print('steer left')
+
     timestamp = datetime.utcnow().strftime('%Y_%m_%d_%H_%M_%S_%f')[:-3]
-    image_folder = "C:/Users/Andac/PycharmProjects/drive/images"
+    image_folder = "/images4"
     image_filename = os.path.join(image_folder, timestamp)
-    image.save('{}.jpg'.format(image_filename))
+    Image.fromarray(image_boxed).save('{}.jpg'.format(image_filename))
     print(data)
+    data.pop('image', None)
     send_control(data)
 
 def send_control(data):

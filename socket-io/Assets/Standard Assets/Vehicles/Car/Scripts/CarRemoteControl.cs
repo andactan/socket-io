@@ -16,10 +16,11 @@ namespace UnityStandardAssets.Vehicles.Car
         void Awake()
         {
             // get the car controller
+            Debug.Log("Car controller is awaken !!!!!");
             m_Car = GetComponent<CarController>();
         }
 
-         void Update()
+         void FixedUpdate()
         {
             m_Car.Move(SteeringAngle, Acceleration, Acceleration, 0f);
         }
